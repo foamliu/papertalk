@@ -51,12 +51,24 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
 import { ArrowLeft, ArrowRight, Loading, Warning } from '@element-plus/icons-vue'
+import { invoke } from '@tauri-apps/api/tauri'
 
 // PDF.js worker setup
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url
-).toString()
+console.log('🔧 Setting up PDF.js worker...')
+try {
+  const workerUrl = new URL(
+    'pdfjs-dist/build/pdf.worker.min.js',
+    import.meta.url
+  ).toString()
+  console.log('📄 PDF.js worker URL:', workerUrl)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
+  console.log('✅ PDF.js worker setup completed')
+} catch (error) {
+  console.error('❌ PDF.js worker setup failed:', error)
+  // 使用CDN作为备选方案
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+  console.log('🔄 Using CDN worker as fallback')
+}
 
 // Props
 const props = defineProps({
@@ -96,15 +108,33 @@ const loadPdf = async () => {
   error.value = ''
   
   try {
-    console.log('Loading PDF from:', props.pdfUrl)
-    const loadingTask = pdfjsLib.getDocument(props.pdfUrl)
+    console.log('🚀 Starting PDF load process...')
+    console.log('📁 PDF URL:', props.pdfUrl)
+    
+    // For Tauri apps, we need to load the PDF data through the backend
+    console.log('📤 Calling Tauri backend to get PDF data...')
+    const pdfData = await invoke('get_pdf_data', { path: props.pdfUrl })
+    console.log('✅ PDF data received from backend, size:', pdfData.length, 'bytes')
+    
+    // Convert the Uint8Array to a typed array for PDF.js
+    const typedArray = new Uint8Array(pdfData)
+    console.log('📊 Typed array created, length:', typedArray.length)
+    
+    // Load PDF from the binary data
+    console.log('📖 Loading PDF document with PDF.js...')
+    const loadingTask = pdfjsLib.getDocument({ data: typedArray })
     pdfDoc.value = await loadingTask.promise
+    console.log('✅ PDF document loaded successfully')
+    
     totalPages.value = pdfDoc.value.numPages
+    console.log('📄 Total pages:', totalPages.value)
     emit('pageCountChanged', totalPages.value)
     
+    console.log('🎨 Rendering page', props.currentPage)
     await renderPage(props.currentPage)
+    console.log('✅ PDF loading completed successfully')
   } catch (err) {
-    console.error('Error loading PDF:', err)
+    console.error('❌ Error loading PDF:', err)
     error.value = err.message || '无法加载PDF文件'
   } finally {
     loading.value = false
@@ -119,26 +149,58 @@ const renderPage = async (pageNum) => {
   if (!pdfDoc.value) return
 
   try {
+    console.log('🎨 Starting to render page', pageNum)
     const page = await pdfDoc.value.getPage(pageNum)
+    console.log('📄 Page object obtained')
+    
     const canvas = canvasRef.value
+    console.log('🖼️ Canvas element:', canvas)
+    
+    if (!canvas) {
+      console.error('❌ Canvas element is null!')
+      return
+    }
+    
+    // 检查canvas在DOM中的状态
+    console.log('🔍 Checking canvas DOM state...')
+    console.log('📍 Canvas parent element:', canvas.parentElement)
+    console.log('📐 Canvas computed style - display:', getComputedStyle(canvas).display)
+    console.log('📐 Canvas computed style - visibility:', getComputedStyle(canvas).visibility)
+    console.log('📐 Canvas computed style - width:', getComputedStyle(canvas).width)
+    console.log('📐 Canvas computed style - height:', getComputedStyle(canvas).height)
+    console.log('📐 Canvas computed style - opacity:', getComputedStyle(canvas).opacity)
+    
     const ctx = canvas.getContext('2d')
+    console.log('🎨 Canvas context obtained')
     
     const viewport = page.getViewport({ scale: 1 })
+    console.log('📏 Original viewport - width:', viewport.width, 'height:', viewport.height)
+    
     const scale = Math.min(1, 800 / viewport.width) // Limit max width to 800px
+    console.log('📐 Calculated scale:', scale)
     
     const scaledViewport = page.getViewport({ scale })
+    console.log('📏 Scaled viewport - width:', scaledViewport.width, 'height:', scaledViewport.height)
     
     canvas.width = scaledViewport.width
     canvas.height = scaledViewport.height
+    console.log('🖼️ Canvas dimensions set - width:', canvas.width, 'height:', canvas.height)
     
     const renderContext = {
       canvasContext: ctx,
       viewport: scaledViewport
     }
     
+    console.log('🖌️ Starting page render...')
     await page.render(renderContext).promise
+    console.log('✅ Page render completed successfully')
+    
+    // 渲染完成后再次检查canvas状态
+    console.log('🔍 Post-render canvas check:')
+    console.log('📊 Canvas has content:', canvas.width > 0 && canvas.height > 0)
+    console.log('🎨 Canvas context is valid:', !!ctx)
   } catch (error) {
-    console.error('Error rendering page:', error)
+    console.error('❌ Error rendering page:', error)
   }
 }
 
@@ -178,10 +240,21 @@ watch(() => props.currentPage, (newPage) => {
 
 // Lifecycle
 onMounted(() => {
+  console.log('🏗️ Vue component mounted')
+  console.log('📁 Current PDF URL:', props.pdfUrl)
+  console.log('🖼️ Canvas ref:', canvasRef.value)
+  
   if (props.pdfUrl) {
+    console.log('🚀 Starting PDF load from onMounted')
     loadPdf()
+  } else {
+    console.log('ℹ️ No PDF URL provided, waiting for props update')
   }
 })
+
+// 添加组件创建时的日志
+console.log('📦 PdfViewer component created')
+console.log('🔧 PDF.js worker URL:', pdfjsLib.GlobalWorkerOptions.workerSrc)
 
 onUnmounted(() => {
   if (pdfDoc.value) {
