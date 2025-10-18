@@ -55,20 +55,9 @@ import { invoke } from '@tauri-apps/api/tauri'
 
 // PDF.js worker setup
 console.log('🔧 Setting up PDF.js worker...')
-try {
-  const workerUrl = new URL(
-    'pdfjs-dist/build/pdf.worker.min.js',
-    import.meta.url
-  ).toString()
-  console.log('📄 PDF.js worker URL:', workerUrl)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
-  console.log('✅ PDF.js worker setup completed')
-} catch (error) {
-  console.error('❌ PDF.js worker setup failed:', error)
-  // 使用CDN作为备选方案
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-  console.log('🔄 Using CDN worker as fallback')
-}
+// 在Tauri环境中，直接使用CDN worker更可靠
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+console.log('✅ PDF.js worker setup completed with CDN')
 
 // Props
 const props = defineProps({
