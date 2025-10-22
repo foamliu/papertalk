@@ -56,9 +56,9 @@ import { nextTick } from 'vue'
 
 // PDF.js worker setup
 console.log('🔧 Setting up PDF.js worker...')
-// 在Tauri环境中，直接使用CDN worker更可靠
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-console.log('✅ PDF.js worker setup completed with CDN')
+// 使用本地worker文件
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+console.log('✅ PDF.js worker setup completed with local worker')
 
 // Props
 const props = defineProps({
