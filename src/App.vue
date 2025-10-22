@@ -234,6 +234,9 @@ onMounted(async () => {
   background-color: #ffffff;
   border-bottom: 1px solid #e4e7ed;
   padding: 0 20px;
+  height: 60px;
+  display: flex;
+  align-items: center;
 }
 
 .dark-mode .app-header {
@@ -245,6 +248,7 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
   height: 100%;
 }
 
@@ -262,11 +266,15 @@ onMounted(async () => {
 
 .main-container {
   height: calc(100vh - 60px);
+  overflow: hidden;
 }
 
 .pdf-container {
   padding: 0;
   background-color: #ffffff;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .dark-mode .pdf-container {
@@ -282,6 +290,53 @@ onMounted(async () => {
 
 .pdf-viewer-wrapper {
   height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+  overflow: auto;
+}
+
+/* 关键修复：确保PDF容器正确居中和对齐 */
+.pdf-viewer-wrapper :deep(.pdf-viewer) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.pdf-viewer-wrapper :deep(.pdf-content) {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.pdf-viewer-wrapper :deep(.pdf-page-container) {
+  display: inline-block;
+  position: relative;
+  margin: 0 auto;
+}
+
+.pdf-viewer-wrapper :deep(.canvas-container) {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+}
+
+.pdf-viewer-wrapper :deep(.text-layer) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  z-index: 2;
+  line-height: 1;
+  font-family: sans-serif;
+  overflow: visible;
 }
 
 .translation-panel {
@@ -289,6 +344,8 @@ onMounted(async () => {
   border-left: 1px solid #e4e7ed;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 .dark-mode .translation-panel {
@@ -300,6 +357,7 @@ onMounted(async () => {
   padding: 15px 20px;
   border-bottom: 1px solid #e4e7ed;
   background-color: #ffffff;
+  flex-shrink: 0;
 }
 
 .dark-mode .panel-header {
@@ -321,6 +379,7 @@ onMounted(async () => {
 .notes-section {
   padding: 20px;
   border-bottom: 1px solid #e4e7ed;
+  flex-shrink: 0;
 }
 
 .translation-section h4,
@@ -340,6 +399,7 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .notes-section :deep(.el-textarea) {
@@ -348,10 +408,13 @@ onMounted(async () => {
 
 .notes-section :deep(.el-textarea__inner) {
   height: 100%;
+  min-height: 80px;
 }
 
 .notes-list {
   margin-top: 20px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .notes-list h5 {

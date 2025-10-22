@@ -36,12 +36,19 @@
         <p>请选择PDF文件</p>
       </div>
       
-      <div v-else class="pdf-page-container" :style="{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left' }">
-        <canvas 
-          ref="canvasRef" 
-          class="pdf-canvas"
-          @click="handleCanvasClick"
-        />
+      <div v-else class="pdf-page-container">
+        <div class="canvas-container">
+          <canvas 
+            ref="canvasRef" 
+            class="pdf-canvas"
+            @click="handleCanvasClick"
+          />
+          <!-- 文本层容器 -->
+          <div 
+            ref="textLayerRef" 
+            class="text-layer"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -56,7 +63,6 @@ import { nextTick } from 'vue'
 
 // PDF.js worker setup
 console.log('🔧 Setting up PDF.js worker...')
-// 使用本地worker文件
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
 console.log('✅ PDF.js worker setup completed with local worker')
 
@@ -81,10 +87,12 @@ const emit = defineEmits(['update:currentPage', 'update:zoomLevel', 'textSelecte
 
 // Refs
 const canvasRef = ref(null)
+const textLayerRef = ref(null)
 const pdfDoc = shallowRef(null)
 const totalPages = ref(0)
 const loading = ref(false)
 const error = ref('')
+const currentViewport = ref(null)
 
 // Computed
 const canGoPrev = computed(() => props.currentPage > 1)
@@ -99,29 +107,17 @@ const loadPdf = async () => {
   
   try {
     console.log('🚀 Starting PDF load process...')
-    console.log('📁 PDF URL:', props.pdfUrl)
     
-    // For Tauri apps, we need to load the PDF data through the backend
-    console.log('📤 Calling Tauri backend to get PDF data...')
     const pdfData = await invoke('get_pdf_data', { path: props.pdfUrl })
     console.log('✅ PDF data received from backend, size:', pdfData.length, 'bytes')
     
-    // Convert the Uint8Array to a typed array for PDF.js
     const typedArray = new Uint8Array(pdfData)
-    console.log('📊 Typed array created, length:', typedArray.length)
-    
-    // Load PDF from the binary data
-    console.log('📖 Loading PDF document with PDF.js...')
     const loadingTask = pdfjsLib.getDocument({ data: typedArray })
     pdfDoc.value = await loadingTask.promise
-    console.log('✅ PDF document loaded successfully')
     
     totalPages.value = pdfDoc.value.numPages
-    console.log('📄 Total pages:', totalPages.value)
     emit('pageCountChanged', totalPages.value)
     
-    console.log('🎨 Rendering page', props.currentPage)
-    // 关掉 loading → 等 DOM → 渲染
     loading.value = false
     await nextTick()
     await renderPage(props.currentPage)
@@ -129,8 +125,6 @@ const loadPdf = async () => {
   } catch (err) {
     console.error('❌ Error loading PDF:', err)
     error.value = err.message || '无法加载PDF文件'
-  } finally {
-    // 已经提前关了，这里不用再写 loading.value = false
   }
 }
 
@@ -141,23 +135,130 @@ const retryLoad = () => {
 const renderPage = async (pageNum) => {
   await nextTick()
   const canvas = canvasRef.value
-  if (!pdfDoc.value || !canvas) return
+  const textLayer = textLayerRef.value
+  if (!pdfDoc.value || !canvas || !textLayer) return
 
-  const { zoomLevel } = props          // ⭐ 补上这行
-  const page  = await pdfDoc.value.getPage(pageNum)
-  const dpr   = window.devicePixelRatio || 1
-  const scale = (800 / page.getViewport({ scale: 1 }).width) * (zoomLevel / 100)
+  const page = await pdfDoc.value.getPage(pageNum)
+  const dpr = window.devicePixelRatio || 1
+  
+  // 固定canvas宽度，像样例一样
+  const canvasWidth = 800
+  const scale = canvasWidth / page.getViewport({ scale: 1 }).width * (props.zoomLevel / 100)
   const viewport = page.getViewport({ scale })
+  
+  currentViewport.value = viewport
 
-  canvas.width  = viewport.width * dpr
+  // 渲染画布
+  canvas.width = viewport.width * dpr
   canvas.height = viewport.height * dpr
   const ctx = canvas.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-  canvas.style.width  = viewport.width + 'px'
+  canvas.style.width = viewport.width + 'px'
   canvas.style.height = viewport.height + 'px'
 
   await page.render({ canvasContext: ctx, viewport }).promise
+
+  // 渲染文本层
+  await renderTextLayer(page, viewport, textLayer)
+}
+
+// 使用PDF.js内置的TextLayer类
+const renderTextLayer = async (page, viewport, textLayerDiv) => {
+  // 清空文本层
+  textLayerDiv.innerHTML = ''
+  
+  try {
+    // 获取文本内容
+    const textContent = await page.getTextContent()
+    
+    // 设置文本层样式 - 精确匹配canvas位置
+    textLayerDiv.style.width = viewport.width + 'px'
+    textLayerDiv.style.height = viewport.height + 'px'
+    textLayerDiv.style.position = 'absolute'
+    textLayerDiv.style.top = '0'
+    textLayerDiv.style.left = '0'
+    textLayerDiv.style.pointerEvents = 'auto'
+    textLayerDiv.style.userSelect = 'text'
+    textLayerDiv.style.zIndex = '2'
+    
+    // 使用PDF.js的TextLayer类
+    const textLayer = new pdfjsLib.TextLayer({
+      textContent: textContent,
+      container: textLayerDiv,
+      viewport: viewport,
+      // 关键：禁用enhancedTextSelection以保持选择功能
+      enhancedTextSelection: false
+    })
+    
+    await textLayer.render()
+    
+    console.log('✅ PDF.js TextLayer渲染完成')
+    
+  } catch (error) {
+    console.error('❌ 文本层渲染失败:', error)
+    // 降级到手动渲染
+    await renderTextLayerFallback(page, viewport, textLayerDiv)
+  }
+}
+
+// 降级方案：手动渲染文本层 - 修复位置偏右下问题
+const renderTextLayerFallback = async (page, viewport, textLayerDiv) => {
+  try {
+    const textContent = await page.getTextContent()
+    const textFragments = textContent.items
+    
+    textFragments.forEach((textItem) => {
+      const { str, transform, dir } = textItem
+      
+      if (!str.trim()) return
+      
+      const [a, b, c, d, e, f] = transform
+      
+      const span = document.createElement('span')
+      span.textContent = str
+      
+      // 修复位置计算 - 参考index.html中的正确方法
+      const scaleFactor = viewport.scale
+      const fontSize = Math.sqrt(a * a + b * b) * scaleFactor
+      
+      // 关键修复：使用正确的坐标转换
+      const tx = pdfjsLib.Util.transform(viewport.transform, transform)
+      const left = tx[4]
+      const top = tx[5]
+      
+      span.style.cssText = `
+        position: absolute;
+        left: ${left}px;
+        top: ${top}px;
+        font-size: ${fontSize}px;
+        line-height: 1;
+        white-space: pre;
+        color: transparent;
+        pointer-events: auto;
+        user-select: text;
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        z-index: 1;
+        mix-blend-mode: multiply;
+        font-family: sans-serif;
+        cursor: text;
+        transform: scale(${1 / scaleFactor});
+        transform-origin: 0 0;
+      `
+      
+      if (dir === 'rtl') {
+        span.style.direction = 'rtl'
+      }
+      
+      textLayerDiv.appendChild(span)
+    })
+    
+    console.log('✅ 降级文本层渲染完成')
+  } catch (error) {
+    console.error('❌ 降级文本层渲染失败:', error)
+  }
 }
 
 const prevPage = () => {
@@ -182,7 +283,6 @@ const handleTextSelection = () => {
 }
 
 const handleCanvasClick = (event) => {
-  // Clear any existing text selection when clicking on canvas
   window.getSelection().removeAllRanges()
 }
 
@@ -193,24 +293,18 @@ watch(() => props.currentPage, (newPage) => {
     renderPage(newPage)
   }
 })
-
-// Lifecycle
-onMounted(() => {
-  console.log('🏗️ Vue component mounted')
-  console.log('📁 Current PDF URL:', props.pdfUrl)
-  console.log('🖼️ Canvas ref:', canvasRef.value)
-  
-  if (props.pdfUrl) {
-    console.log('🚀 Starting PDF load from onMounted')
-    loadPdf()
-  } else {
-    console.log('ℹ️ No PDF URL provided, waiting for props update')
+watch(() => props.zoomLevel, () => {
+  if (pdfDoc.value) {
+    renderPage(props.currentPage)
   }
 })
 
-// 添加组件创建时的日志
-console.log('📦 PdfViewer component created')
-console.log('🔧 PDF.js worker URL:', pdfjsLib.GlobalWorkerOptions.workerSrc)
+// Lifecycle
+onMounted(() => {
+  if (props.pdfUrl) {
+    loadPdf()
+  }
+})
 
 onUnmounted(() => {
   if (pdfDoc.value) {
@@ -251,6 +345,12 @@ onUnmounted(() => {
   background: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   display: inline-block;
+  position: relative;
+}
+
+.canvas-container {
+  position: relative;
+  display: inline-block;
 }
 
 .dark-mode .pdf-page-container {
@@ -261,6 +361,44 @@ onUnmounted(() => {
   display: block;
   max-width: 100%;
   height: auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* 文本层样式 - 确保可以选择 */
+.text-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  z-index: 2;
+  line-height: 1;
+  font-family: sans-serif;
+  overflow: visible;
+}
+
+.text-layer span {
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  color: transparent;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+.text-layer ::selection {
+  background: rgba(0, 0, 255, 0.3);
+}
+
+.text-layer ::-moz-selection {
+  background: rgba(0, 0, 255, 0.3);
 }
 
 .loading-state,
