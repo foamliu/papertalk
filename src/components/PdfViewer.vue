@@ -48,10 +48,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, onMounted, watch, onUnmounted } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
 import { ArrowLeft, ArrowRight, Loading, Warning } from '@element-plus/icons-vue'
 import { invoke } from '@tauri-apps/api/tauri'
+import { nextTick } from 'vue'
 
 // PDF.js worker setup
 console.log('🔧 Setting up PDF.js worker...')
@@ -80,7 +81,7 @@ const emit = defineEmits(['update:currentPage', 'update:zoomLevel', 'textSelecte
 
 // Refs
 const canvasRef = ref(null)
-const pdfDoc = ref(null)
+const pdfDoc = shallowRef(null)
 const totalPages = ref(0)
 const loading = ref(false)
 const error = ref('')
@@ -120,13 +121,16 @@ const loadPdf = async () => {
     emit('pageCountChanged', totalPages.value)
     
     console.log('🎨 Rendering page', props.currentPage)
+    // 关掉 loading → 等 DOM → 渲染
+    loading.value = false
+    await nextTick()
     await renderPage(props.currentPage)
     console.log('✅ PDF loading completed successfully')
   } catch (err) {
     console.error('❌ Error loading PDF:', err)
     error.value = err.message || '无法加载PDF文件'
   } finally {
-    loading.value = false
+    // 已经提前关了，这里不用再写 loading.value = false
   }
 }
 
@@ -135,6 +139,15 @@ const retryLoad = () => {
 }
 
 const renderPage = async (pageNum) => {
+  await nextTick() // ⭐ 等待 DOM 更新完成
+
+  console.log('🔍 Check before render:', {
+    pdfDoc: !!pdfDoc.value,
+    loading: loading.value,
+    error: error.value,
+    canvasRef: canvasRef.value
+  })
+  
   if (!pdfDoc.value) return
 
   try {
