@@ -139,71 +139,25 @@ const retryLoad = () => {
 }
 
 const renderPage = async (pageNum) => {
-  await nextTick() // ⭐ 等待 DOM 更新完成
+  await nextTick()
+  const canvas = canvasRef.value
+  if (!pdfDoc.value || !canvas) return
 
-  console.log('🔍 Check before render:', {
-    pdfDoc: !!pdfDoc.value,
-    loading: loading.value,
-    error: error.value,
-    canvasRef: canvasRef.value
-  })
-  
-  if (!pdfDoc.value) return
+  const { zoomLevel } = props          // ⭐ 补上这行
+  const page  = await pdfDoc.value.getPage(pageNum)
+  const dpr   = window.devicePixelRatio || 1
+  const scale = (800 / page.getViewport({ scale: 1 }).width) * (zoomLevel / 100)
+  const viewport = page.getViewport({ scale })
 
-  try {
-    console.log('🎨 Starting to render page', pageNum)
-    const page = await pdfDoc.value.getPage(pageNum)
-    console.log('📄 Page object obtained')
-    
-    const canvas = canvasRef.value
-    console.log('🖼️ Canvas element:', canvas)
-    
-    if (!canvas) {
-      console.error('❌ Canvas element is null!')
-      return
-    }
-    
-    // 检查canvas在DOM中的状态
-    console.log('🔍 Checking canvas DOM state...')
-    console.log('📍 Canvas parent element:', canvas.parentElement)
-    console.log('📐 Canvas computed style - display:', getComputedStyle(canvas).display)
-    console.log('📐 Canvas computed style - visibility:', getComputedStyle(canvas).visibility)
-    console.log('📐 Canvas computed style - width:', getComputedStyle(canvas).width)
-    console.log('📐 Canvas computed style - height:', getComputedStyle(canvas).height)
-    console.log('📐 Canvas computed style - opacity:', getComputedStyle(canvas).opacity)
-    
-    const ctx = canvas.getContext('2d')
-    console.log('🎨 Canvas context obtained')
-    
-    const viewport = page.getViewport({ scale: 1 })
-    console.log('📏 Original viewport - width:', viewport.width, 'height:', viewport.height)
-    
-    const scale = Math.min(1, 800 / viewport.width) // Limit max width to 800px
-    console.log('📐 Calculated scale:', scale)
-    
-    const scaledViewport = page.getViewport({ scale })
-    console.log('📏 Scaled viewport - width:', scaledViewport.width, 'height:', scaledViewport.height)
-    
-    canvas.width = scaledViewport.width
-    canvas.height = scaledViewport.height
-    console.log('🖼️ Canvas dimensions set - width:', canvas.width, 'height:', canvas.height)
-    
-    const renderContext = {
-      canvasContext: ctx,
-      viewport: scaledViewport
-    }
-    
-    console.log('🖌️ Starting page render...')
-    await page.render(renderContext).promise
-    console.log('✅ Page render completed successfully')
-    
-    // 渲染完成后再次检查canvas状态
-    console.log('🔍 Post-render canvas check:')
-    console.log('📊 Canvas has content:', canvas.width > 0 && canvas.height > 0)
-    console.log('🎨 Canvas context is valid:', !!ctx)
-  } catch (error) {
-    console.error('❌ Error rendering page:', error)
-  }
+  canvas.width  = viewport.width * dpr
+  canvas.height = viewport.height * dpr
+  const ctx = canvas.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+  canvas.style.width  = viewport.width + 'px'
+  canvas.style.height = viewport.height + 'px'
+
+  await page.render({ canvasContext: ctx, viewport }).promise
 }
 
 const prevPage = () => {
