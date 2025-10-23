@@ -68,7 +68,7 @@
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
 import { ArrowLeft, ArrowRight, Loading, Warning } from '@element-plus/icons-vue'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
 
 /* ---------------------------------
  * PDF.js 配置

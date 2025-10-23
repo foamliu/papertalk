@@ -124,7 +124,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import { FolderOpened, Sunny, Moon } from '@element-plus/icons-vue'
 import { useAppStore } from './stores/app'
 import PdfViewer from './components/PdfViewer.vue'
@@ -143,11 +144,17 @@ const toggleDarkMode = () => {
 
 const openFile = async () => {
   try {
-    const filePath = await invoke('open_file_dialog')
-    if (filePath) {
-      // For Tauri apps, we need to use the file path directly
-      // PDF.js should be able to handle local file paths
-      appStore.setCurrentPdf(filePath)
+    const selected = await open({
+      multiple: false,
+      filters: [{
+        name: 'PDF',
+        extensions: ['pdf']
+      }]
+    })
+    
+    if (selected) {
+      // Use the selected file path directly
+      appStore.setCurrentPdf(selected)
     }
   } catch (error) {
     console.error('Failed to open file:', error)

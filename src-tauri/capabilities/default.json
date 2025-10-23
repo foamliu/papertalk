@@ -1,0 +1,12 @@
+{
+  "$schema": "https://tauri.app/schemas/capability-schema.json",
+  "identifier": "default",
+  "description": "默认能力，放开最常用的对话框与调试工具",
+  "windows": ["main"],
+  "permissions": [
+    "dialog:allow-open",
+    "dialog:default",
+    "core:webview:allow-internal-toggle-devtools",
+    "core:webview:default"
+  ]
+}

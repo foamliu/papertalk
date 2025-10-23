@@ -96,32 +96,6 @@ fn open_ollama_website() -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-async fn open_file_dialog() -> Result<String, String> {
-    use tauri::api::dialog::FileDialogBuilder;
-    
-    let (tx, rx) = std::sync::mpsc::channel();
-    
-    FileDialogBuilder::new()
-        .add_filter("PDF files", &["pdf"])
-        .pick_file(move |file_path| {
-            let _ = tx.send(file_path);
-        });
-    
-    match rx.recv() {
-        Ok(Some(path)) => {
-            if let Some(path_str) = path.to_str() {
-                // For Tauri, we need to convert the file path to a URL that PDF.js can access
-                // We'll use a custom protocol handler
-                Ok(format!("tauri://localhost/{}", path_str.replace("\\", "/")))
-            } else {
-                Err("Invalid file path".to_string())
-            }
-        }
-        Ok(None) => Err("No file selected".to_string()),
-        Err(_) => Err("Failed to receive file path".to_string()),
-    }
-}
 
 #[tauri::command]
 async fn get_pdf_data(path: String) -> Result<Vec<u8>, String> {
@@ -129,8 +103,8 @@ async fn get_pdf_data(path: String) -> Result<Vec<u8>, String> {
     
     println!("📁 Received request to read PDF: {}", path);
     
-    // Remove the protocol prefix if present
-    let clean_path = path.replace("tauri://localhost/", "");
+    // Remove the protocol prefix if present (Tauri 2.x uses asset://)
+    let clean_path = path.replace("asset://localhost/", "");
     println!("📁 Cleaned path: {}", clean_path);
     
     match fs::read(&clean_path) {
@@ -147,11 +121,11 @@ async fn get_pdf_data(path: String) -> Result<Vec<u8>, String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             check_ollama,
             translate_text,
             open_ollama_website,
-            open_file_dialog,
             get_pdf_data
         ])
         .run(tauri::generate_context!())
