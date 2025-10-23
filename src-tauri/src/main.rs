@@ -34,35 +34,38 @@ async fn check_ollama() -> Result<bool, String> {
 async fn translate_text(text: String) -> Result<String, String> {
     println!("🌐 收到翻译请求，文本：{}", text);
 
-
     let client = reqwest::Client::new();
     let request = OllamaRequest {
-        model: "qwen3:8b-q4_K_M".to_string(),
-        prompt: format!("请将以下英文文本翻译成中文，保持专业术语不变：{} /no_think", text),
+        model: "qwen3:8b".to_string(),
+        // 明确禁止输出思考标签或后缀
+        prompt: format!(
+            "请将以下英文文本翻译成中文，保持专业术语不变。\
+             不要输出任何解释、思考过程、<think>标签或类似/no_think /think的尾巴：{}",
+            text
+        ),
         stream: false,
     };
 
-    let url = "http://127.0.0.1:11434/api/generate";
+    let url = "http://127.0.0.1:11434/api/generate"; // 去掉尾部空格
     println!("[translate_text] 请求 URL: {}", url);
 
-    match client
-        .post(url)
-        .json(&request)
-        .send()
-        .await
-    {
+    match client.post(url).json(&request).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let ollama_resp: OllamaResponse = resp
+                .json()
+                .await
+                .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+            // 去掉 <think>…</think> 以及尾巴上的 /no_think /think
+            let re = Regex::new(r"(?s)<think>\s*.*?\s*</think>|\s*/no_think\s*/think\s*$").unwrap();
+            let cleaned = re.replace_all(&ollama_resp.response, "").trim().to_string();
+
+            println!("[translate_text] 翻译结果: {}", cleaned);
+            Ok(cleaned)
+        }
         Ok(resp) => {
-            if resp.status().is_success() {
-                let ollama_resp: OllamaResponse = resp.json().await
-                    .map_err(|e| format!("Failed to parse response: {}", e))?;
-                let re = Regex::new(r"(?s)<think>\s*.*?\s*</think>\s*").unwrap();
-                let cleaned = re.replace_all(&ollama_resp.response, "").trim().to_string();
-                println!("[translate_text] 翻译结果: {}", cleaned);
-                Ok(cleaned)
-            } else {
-                println!("[translate_text] ❌ 非 2xx 状态：{}", resp.status());
-                Err("Translation failed".to_string())
-            }
+            println!("[translate_text] ❌ 非 2xx 状态：{}", resp.status());
+            Err("Translation failed".to_string())
         }
         Err(e) => {
             println!("[translate_text] ❌ 网络错误: {}", e);
