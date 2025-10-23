@@ -18,6 +18,7 @@ serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.5", features = [ "shell-open", "fs-all", "path-all", "os-all", "window-all", "http-all", "dialog"] }
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1.0", features = ["full"] }
+regex = "1"
 
 [features]
 # this feature is used for production builds
