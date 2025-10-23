@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.1.0",
-    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "element-plus": "^2.3.0",
     "pdfjs-dist": "5.4.296",
