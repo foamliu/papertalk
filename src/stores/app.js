@@ -13,6 +13,8 @@ export const useAppStore = defineStore('app', () => {
   const translating = ref(false)
   const notes = ref([])
   const ollamaStatus = ref('checking') // 'checking', 'running', 'not-found'
+  const isStreaming = ref(false)
+  const streamingText = ref('')
 
   // Getters
   const hasPdf = computed(() => currentPdf.value !== null)
@@ -83,6 +85,22 @@ export const useAppStore = defineStore('app', () => {
     ollamaStatus.value = status
   }
 
+  const setStreaming = (status) => {
+    isStreaming.value = status
+  }
+
+  const setStreamingText = (text) => {
+    streamingText.value = text
+  }
+
+  const appendStreamingText = (chunk) => {
+    streamingText.value += chunk
+  }
+
+  const clearStreamingText = () => {
+    streamingText.value = ''
+  }
+
   return {
     // State
     currentPdf,
@@ -95,6 +113,8 @@ export const useAppStore = defineStore('app', () => {
     translating,
     notes,
     ollamaStatus,
+    isStreaming,
+    streamingText,
 
     // Getters
     hasPdf,
@@ -114,6 +134,10 @@ export const useAppStore = defineStore('app', () => {
     setTranslatedText,
     setTranslating,
     addNote,
-    setOllamaStatus
+    setOllamaStatus,
+    setStreaming,
+    setStreamingText,
+    appendStreamingText,
+    clearStreamingText
   }
 })

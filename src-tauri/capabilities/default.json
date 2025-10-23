@@ -7,6 +7,8 @@
     "dialog:allow-open",
     "dialog:default",
     "core:webview:allow-internal-toggle-devtools",
-    "core:webview:default"
+    "core:webview:default",
+    "core:event:allow-listen",
+    "core:event:default"
   ]
 }

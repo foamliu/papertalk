@@ -63,7 +63,22 @@
 
           <div class="translation-result">
             <h4>译文</h4>
+            <div v-if="appStore.isStreaming" class="streaming-translation">
+              <el-input
+                v-model="appStore.streamingText"
+                type="textarea"
+                :rows="4"
+                placeholder="翻译结果将实时显示在这里..."
+                readonly
+                class="streaming-textarea"
+              />
+              <div class="streaming-indicator">
+                <span class="streaming-dot"></span>
+                <span>实时翻译中...</span>
+              </div>
+            </div>
             <el-input
+              v-else
               v-model="appStore.translatedText"
               type="textarea"
               :rows="4"
@@ -123,9 +138,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
+import { listen } from '@tauri-apps/api/event'
 import { FolderOpened, Sunny, Moon } from '@element-plus/icons-vue'
 import { useAppStore } from './stores/app'
 import PdfViewer from './components/PdfViewer.vue'
@@ -164,15 +180,69 @@ const openFile = async () => {
 const translateSelectedText = async () => {
   if (!appStore.selectedText) return
   
+  console.log('开始流式翻译，文本:', appStore.selectedText)
+  console.log('当前状态 - translating:', appStore.translating, 'isStreaming:', appStore.isStreaming)
+  
+  // 使用流式翻译
   appStore.setTranslating(true)
+  appStore.setStreaming(true)
+  appStore.clearStreamingText()
+  
+  console.log('设置状态后 - translating:', appStore.translating, 'isStreaming:', appStore.isStreaming)
+  
   try {
-    const result = await invoke('translate_text', { text: appStore.selectedText })
-    appStore.setTranslatedText(result)
-  } catch (error) {
-    console.error('Translation failed:', error)
-    appStore.setTranslatedText('翻译失败，请检查 Ollama 是否运行')
-  } finally {
+    console.log('调用后端流式翻译命令...')
+    const result = await invoke('translate_text_stream', { text: appStore.selectedText })
+    console.log('后端流式翻译命令调用完成，结果:', result)
+    console.log('当前 streamingText:', appStore.streamingText)
+    
+    // 无论如何都显示翻译结果
+    if (result) {
+      console.log('设置翻译结果:', result)
+      appStore.setTranslatedText(result)
+      console.log('设置后 translatedText:', appStore.translatedText)
+    }
+    appStore.setStreaming(false)
     appStore.setTranslating(false)
+    console.log('最终状态 - translating:', appStore.translating, 'isStreaming:', appStore.isStreaming)
+  } catch (error) {
+    console.error('Streaming translation failed:', error)
+    appStore.setTranslatedText('翻译失败，请检查 Ollama 是否运行')
+    appStore.setStreaming(false)
+    appStore.setTranslating(false)
+  }
+}
+
+// 监听流式翻译事件
+const setupEventListeners = async () => {
+  console.log('设置流式翻译事件监听器...')
+  
+  try {
+    // 监听翻译片段
+    const unlistenChunk = await listen('translation_chunk', (event) => {
+      const chunk = event.payload
+      console.log('收到翻译片段:', chunk)
+      appStore.appendStreamingText(chunk)
+    })
+    
+    // 监听翻译完成
+    const unlistenComplete = await listen('translation_complete', (event) => {
+      const fullText = event.payload
+      console.log('翻译完成，完整文本:', fullText)
+      appStore.setTranslatedText(fullText)
+      appStore.setStreaming(false)
+      appStore.setTranslating(false)
+    })
+    
+    console.log('事件监听器设置成功')
+    
+    return () => {
+      unlistenChunk()
+      unlistenComplete()
+    }
+  } catch (error) {
+    console.error('设置事件监听器失败:', error)
+    return () => {}
   }
 }
 
@@ -204,7 +274,11 @@ const retryOllamaCheck = async () => {
 }
 
 // Lifecycle
+let cleanupEventListeners = null
+
 onMounted(async () => {
+  console.log('App mounted, setting up event listeners...')
+  
   // Check if Ollama is running on app start
   try {
     const isOllamaRunning = await invoke('check_ollama')
@@ -218,6 +292,16 @@ onMounted(async () => {
     console.error('Failed to check Ollama:', error)
     showOllamaDialog.value = true
     appStore.setOllamaStatus('not-found')
+  }
+  
+  // Setup event listeners for streaming translation
+  cleanupEventListeners = await setupEventListeners()
+  console.log('Event listeners setup completed')
+})
+
+onUnmounted(() => {
+  if (cleanupEventListeners) {
+    cleanupEventListeners()
   }
 })
 </script>
@@ -459,5 +543,59 @@ onMounted(async () => {
 
 .dark-mode .note-meta {
   color: #999;
+}
+
+/* 流式翻译样式 */
+.streaming-translation {
+  position: relative;
+}
+
+.streaming-textarea {
+  margin-bottom: 8px;
+}
+
+.streaming-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #409eff;
+  padding: 4px 8px;
+  background-color: #f0f9ff;
+  border-radius: 4px;
+  border: 1px solid #e1f5fe;
+}
+
+.dark-mode .streaming-indicator {
+  background-color: #1e3a5f;
+  border-color: #2d4a6e;
+  color: #87ceeb;
+}
+
+.streaming-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #409eff;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+.dark-mode .streaming-dot {
+  background-color: #87ceeb;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
 }
 </style>
