@@ -28,6 +28,7 @@ struct OllamaRequest {
     model: String,
     prompt: String,
     stream: bool,
+    think: bool,
 }
 
 #[tauri::command]
@@ -49,10 +50,11 @@ async fn translate_text(text: String) -> Result<String, String> {
         // 明确禁止输出思考标签或后缀
         prompt: format!(
             "请将以下英文文本翻译成中文，保持专业术语不变。\
-             不要输出任何解释、思考过程、<think>标签或类似/no_think /think的尾巴：{}",
+             {}",
             text
         ),
         stream: false,
+        think: false
     };
 
     let url = "http://127.0.0.1:11434/api/generate"; // 去掉尾部空格
@@ -92,10 +94,11 @@ async fn translate_text_stream(text: String, app_handle: tauri::AppHandle) -> Re
         model: "qwen3:8b".to_string(),
         prompt: format!(
             "请将以下英文文本翻译成中文，保持专业术语不变。\
-             不要输出任何解释、思考过程、<think>标签或类似/no_think /think的尾巴：{}",
+             {}",
             text
         ),
         stream: true,
+        think: false,
     };
 
     let url = "http://127.0.0.1:11434/api/generate";
