@@ -30,7 +30,12 @@
     </div>
 
     <!-- 内容区 -->
-    <div class="pdf-content" @mouseup="handleTextSelection">
+    <div 
+      class="pdf-content" 
+      @mouseup="handleTextSelection"
+      @wheel="handleWheel"
+      ref="pdfContentRef"
+    >
       <!-- 加载中 -->
       <div v-if="loading" class="loading-state">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
@@ -100,6 +105,9 @@ const pdfDoc = shallowRef(null)
 const totalPages = ref(0)
 const loading = ref(false)
 const error = ref('')
+const pdfContentRef = ref(null)
+const isAtBottom = ref(false)
+const isAtTop = ref(true)
 
 /* ---------------------------------
  * 计算属性
@@ -182,10 +190,59 @@ function handleCanvasClick() {
 }
 
 /* ---------------------------------
+ * 鼠标滚轮处理
+ * --------------------------------- */
+function handleWheel(event) {
+  if (!pdfContentRef.value) return
+  
+  const container = pdfContentRef.value
+  const scrollTop = container.scrollTop
+  const scrollHeight = container.scrollHeight
+  const clientHeight = container.clientHeight
+  
+  // 更新滚动位置状态
+  isAtTop.value = scrollTop === 0
+  isAtBottom.value = scrollTop + clientHeight >= scrollHeight - 5 // 容差5px
+  
+  // 检查是否需要翻页
+  if (event.deltaY > 0) {
+    // 向下滚动
+    if (isAtBottom.value && canGoNext.value) {
+      event.preventDefault()
+      nextPage()
+      // 重置滚动位置到顶部
+      nextTick(() => {
+        container.scrollTop = 0
+      })
+    }
+  } else if (event.deltaY < 0) {
+    // 向上滚动
+    if (isAtTop.value && canGoPrev.value) {
+      event.preventDefault()
+      prevPage()
+      // 重置滚动位置到底部
+      nextTick(() => {
+        container.scrollTop = container.scrollHeight - container.clientHeight
+      })
+    }
+  }
+}
+
+/* ---------------------------------
  * 监听
  * --------------------------------- */
 watch(() => props.pdfUrl, loadPdf)
-watch(() => props.currentPage, (n) => pdfDoc.value && renderPage(n))
+watch(() => props.currentPage, (n) => {
+  if (pdfDoc.value) {
+    renderPage(n)
+    // 每次翻页后重置滚动位置到顶部
+    nextTick(() => {
+      if (pdfContentRef.value) {
+        pdfContentRef.value.scrollTop = 0
+      }
+    })
+  }
+})
 watch(() => props.zoomLevel, () => pdfDoc.value && renderPage(props.currentPage))
 
 onMounted(() => props.pdfUrl && loadPdf())
