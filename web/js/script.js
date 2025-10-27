@@ -185,14 +185,22 @@ function initDownloadButtons() {
     const downloadButtons = document.querySelectorAll('.download-card .btn-primary');
     
     downloadButtons.forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function(e) {
             const os = this.closest('.download-card').querySelector('h3').textContent;
-            showNotification(`Download for ${os} will start shortly...`, 'info');
+            const href = this.getAttribute('href');
             
-            // Simulate download
-            setTimeout(() => {
-                showNotification(`Download for ${os} completed!`, 'success');
-            }, 2000);
+            // Check if the file exists
+            if (!href || href === '#') {
+                e.preventDefault();
+                showNotification(`Download for ${os} is not available yet. Please check back later.`, 'warning');
+                return;
+            }
+            
+            // Show download started notification
+            showNotification(`Download for ${os} starting...`, 'info');
+            
+            // The actual download will be handled by the browser
+            // since we're using <a> tags with download attribute
         });
     });
 }
