@@ -5,8 +5,9 @@
   "identifier": "com.papertalk.app",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
+    "beforeBuildCommand": "npm run build", 
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420"
   },
   "app": {
     "windows": [

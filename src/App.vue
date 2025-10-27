@@ -37,7 +37,7 @@
         <!-- Translation Panel -->
         <el-aside class="translation-panel" width="350px">
           <div class="panel-header">
-            <h3>翻译 & 笔记</h3>
+            <h3>翻译</h3>
           </div>
           
           <div class="translation-section">
@@ -45,9 +45,10 @@
             <el-input
               v-model="appStore.selectedText"
               type="textarea"
-              :rows="3"
+              :rows="8"
               placeholder="选择文本后点击翻译按钮"
               readonly
+              class="original-textarea"
             />
             
             <el-button 
@@ -67,10 +68,10 @@
               <el-input
                 v-model="appStore.streamingText"
                 type="textarea"
-                :rows="4"
+                :rows="15"
                 placeholder="翻译结果将实时显示在这里..."
                 readonly
-                class="streaming-textarea"
+                class="translation-textarea streaming-textarea"
               />
               <div class="streaming-indicator">
                 <span class="streaming-dot"></span>
@@ -81,33 +82,11 @@
               v-else
               v-model="appStore.translatedText"
               type="textarea"
-              :rows="4"
+              :rows="15"
               placeholder="翻译结果将显示在这里"
               readonly
+              class="translation-textarea"
             />
-          </div>
-
-          <div class="notes-section">
-            <h4>笔记</h4>
-            <el-input
-              v-model="currentNote"
-              type="textarea"
-              :rows="3"
-              placeholder="添加笔记..."
-              @blur="saveNote"
-            />
-            
-            <div class="notes-list" v-if="appStore.notes.length > 0">
-              <h5>历史笔记</h5>
-              <div 
-                v-for="note in appStore.notes" 
-                :key="note.id"
-                class="note-item"
-              >
-                <div class="note-text">{{ note.text }}</div>
-                <div class="note-meta">第 {{ note.page }} 页</div>
-              </div>
-            </div>
           </div>
         </el-aside>
       </el-container>
@@ -150,7 +129,6 @@ import PdfViewer from './components/PdfViewer.vue'
 const appStore = useAppStore()
 
 // Local state
-const currentNote = ref('')
 const showOllamaDialog = ref(false)
 
 // Methods
@@ -246,12 +224,6 @@ const setupEventListeners = async () => {
   }
 }
 
-const saveNote = () => {
-  if (currentNote.value.trim()) {
-    appStore.addNote(currentNote.value)
-    currentNote.value = ''
-  }
-}
 
 const openOllamaWebsite = async () => {
   try {
@@ -466,83 +438,51 @@ onUnmounted(() => {
 }
 
 .translation-section,
-.translation-result,
-.notes-section {
+.translation-result {
   padding: 20px;
   border-bottom: 1px solid #e4e7ed;
   flex-shrink: 0;
 }
 
+.translation-section {
+  flex: 0 0 35%;
+  display: flex;
+  flex-direction: column;
+}
+
+.translation-result {
+  flex: 0 0 65%;
+  display: flex;
+  flex-direction: column;
+}
+
 .translation-section h4,
-.translation-result h4,
-.notes-section h4 {
+.translation-result h4 {
   margin: 0 0 10px 0;
   color: #606266;
 }
 
 .dark-mode .translation-section h4,
-.dark-mode .translation-result h4,
-.dark-mode .notes-section h4 {
+.dark-mode .translation-result h4 {
   color: #cccccc;
 }
 
-.notes-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.notes-section :deep(.el-textarea) {
+.original-textarea {
   flex: 1;
 }
 
-.notes-section :deep(.el-textarea__inner) {
+.original-textarea :deep(.el-textarea__inner) {
   height: 100%;
-  min-height: 80px;
+  resize: none;
 }
 
-.notes-list {
-  margin-top: 20px;
-  overflow-y: auto;
+.translation-textarea {
   flex: 1;
 }
 
-.notes-list h5 {
-  margin: 0 0 10px 0;
-  color: #909399;
-  font-size: 14px;
-}
-
-.dark-mode .notes-list h5 {
-  color: #999;
-}
-
-.note-item {
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  background-color: #f0f2f5;
-  border-radius: 4px;
-  border-left: 3px solid #409eff;
-}
-
-.dark-mode .note-item {
-  background-color: #363636;
-}
-
-.note-text {
-  font-size: 14px;
-  line-height: 1.4;
-  margin-bottom: 4px;
-}
-
-.note-meta {
-  font-size: 12px;
-  color: #909399;
-}
-
-.dark-mode .note-meta {
-  color: #999;
+.translation-textarea :deep(.el-textarea__inner) {
+  height: 100%;
+  resize: none;
 }
 
 /* 流式翻译样式 */
