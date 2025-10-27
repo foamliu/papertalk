@@ -108,6 +108,7 @@ const error = ref('')
 const pdfContentRef = ref(null)
 const isAtBottom = ref(false)
 const isAtTop = ref(true)
+const containerWidth = ref(0)
 
 /* ---------------------------------
  * 计算属性
@@ -131,12 +132,38 @@ async function loadPdf() {
     emit('pageCountChanged', totalPages.value)
     loading.value = false
     await nextTick()
+    
+    // 先渲染页面，然后计算适合容器宽度的默认缩放级别
     await renderPage(props.currentPage)
+    await calculateOptimalZoom()
   } catch (e) {
     console.error('PDF 加载失败', e)
     error.value = e.message || '无法加载 PDF'
     loading.value = false
   }
+}
+
+// 计算适合容器宽度的最佳缩放级别
+async function calculateOptimalZoom() {
+  if (!pdfDoc.value || !pdfContentRef.value) return
+  
+  const container = pdfContentRef.value
+  
+  // 使用默认的PDF页面尺寸（A4尺寸：595x842 points）
+  // 大多数PDF使用A4尺寸，这是一个合理的默认值
+  const defaultPageWidth = 595 // A4 width in points
+  
+  // 计算容器可用宽度（减去内边距）
+  const availableWidth = container.clientWidth - 40 // 减去左右内边距
+  
+  // 计算适合宽度的缩放比例
+  const optimalScale = (availableWidth / defaultPageWidth) * 100
+  
+  // 限制缩放范围在50%-200%之间
+  const clampedZoom = Math.max(50, Math.min(200, Math.round(optimalScale)))
+  
+  // 更新缩放级别
+  emit('update:zoomLevel', clampedZoom)
 }
 
 async function renderPage(pageNum) {
@@ -194,6 +221,21 @@ function handleCanvasClick() {
  * --------------------------------- */
 function handleWheel(event) {
   if (!pdfContentRef.value) return
+  
+  // 检查是否按下Ctrl键进行缩放
+  if (event.ctrlKey) {
+    event.preventDefault()
+    
+    // 计算缩放增量（基于滚轮方向）
+    const zoomDelta = event.deltaY > 0 ? -10 : 10
+    
+    // 计算新的缩放级别
+    const newZoom = Math.max(50, Math.min(200, props.zoomLevel + zoomDelta))
+    
+    // 更新缩放级别
+    emit('update:zoomLevel', newZoom)
+    return
+  }
   
   const container = pdfContentRef.value
   const scrollTop = container.scrollTop
