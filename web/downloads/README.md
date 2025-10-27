@@ -6,7 +6,7 @@
 ```
 web/downloads/
 ├── windows/
-│   └── PaperTalk-Setup-1.0.0.exe
+│   └── PaperTalk_0.1.0_x64_en-US.msi
 ├── macos/
 │   └── PaperTalk-1.0.0.dmg
 └── linux/
