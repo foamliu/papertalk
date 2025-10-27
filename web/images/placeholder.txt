@@ -1,0 +1,7 @@
+This directory should contain the following images:
+
+- app-preview.png: A screenshot or mockup of the PaperTalk application
+- logo.png: The PaperTalk logo (optional)
+- favicon.ico: Website favicon (optional)
+
+For now, these are placeholder files. You can replace them with actual images when available.
