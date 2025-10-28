@@ -19,7 +19,7 @@ web/downloads/
 1. **构建实际的安装文件**：
    - Windows: `.exe` 安装程序
    - macOS: `.dmg` 磁盘映像
-   - Linux: `.AppImage` 或 `.deb` 包
+   - Linux: `.deb` 包
 
 2. **更新下载链接**：
    - 修改 `web/index.html` 中的下载按钮为 `<a>` 标签
@@ -28,7 +28,7 @@ web/downloads/
 3. **文件命名建议**：
    - Windows: `PaperTalk-Setup-{version}.exe`
    - macOS: `PaperTalk-{version}.dmg`
-   - Linux: `PaperTalk-{version}.AppImage`
+   - Linux: `PaperTalk-{version}.deb`
 
 ## 如何生成安装文件：
 使用 Tauri 构建命令：
