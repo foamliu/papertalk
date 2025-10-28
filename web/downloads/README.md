@@ -10,7 +10,7 @@ web/downloads/
 ├── macos/
 │   └── PaperTalk-1.0.0.dmg
 └── linux/
-    └── PaperTalk-1.0.0.AppImage
+    └── PaperTalk_0.1.0_amd64.deb
 ```
 
 ## 当前状态：
