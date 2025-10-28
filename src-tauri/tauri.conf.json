@@ -28,9 +28,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+      "targets": [
+        "msi",
+        "dmg",
+        "deb"
+    ],
     "icon": [
-      "icons/icon.png"
+      "icons/icon.ico"
     ]
   },
   "plugins": {
