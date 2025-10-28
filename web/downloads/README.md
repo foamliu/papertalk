@@ -8,7 +8,7 @@ web/downloads/
 ├── windows/
 │   └── PaperTalk_0.1.0_x64_en-US.msi
 ├── macos/
-│   └── PaperTalk-1.0.0.dmg
+│   └── PaperTalk_0.1.0_aarch64_darwin.dmg
 └── linux/
     └── PaperTalk_0.1.0_amd64.deb
 ```
