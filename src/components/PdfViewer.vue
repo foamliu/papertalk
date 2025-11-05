@@ -74,6 +74,7 @@ import { ref, shallowRef, computed, watch, onMounted, onUnmounted, nextTick } fr
 import * as pdfjsLib from 'pdfjs-dist'
 import { ArrowLeft, ArrowRight, Loading, Warning } from '@element-plus/icons-vue'
 import { invoke } from '@tauri-apps/api/core'
+import { useAppStore } from '../stores/app'
 
 /* ---------------------------------
  * PDF.js 配置
@@ -99,6 +100,7 @@ const emit = defineEmits([
 /* ---------------------------------
  * 响应式数据
  * --------------------------------- */
+const appStore = useAppStore()
 const canvasRef = ref(null)
 const textLayerRef = ref(null)
 const pdfDoc = shallowRef(null)
@@ -192,6 +194,9 @@ async function renderPage(pageNum) {
   
   // 创建自定义文本层，确保精确对齐
   await renderCustomTextLayer(textDiv, textContent, viewport)
+  
+  // 提取当前页面文本内容并存储到 store
+  extractAndStorePageContent(textContent)
 }
 
 function retryLoad() {
@@ -432,6 +437,27 @@ function cleanSelectedText(text) {
     .replace(/\s+/g, ' ') // 合并多个空格
     .replace(/\n/g, ' ')  // 替换换行符为空格
     .trim()
+}
+
+// 提取并存储页面内容
+function extractAndStorePageContent(textContent) {
+  if (!textContent || !textContent.items || textContent.items.length === 0) {
+    console.log('没有找到页面文本内容')
+    appStore.setCurrentPageContent('')
+    return
+  }
+  
+  // 提取所有文本项的内容
+  const pageText = textContent.items
+    .map(item => item.str)
+    .join(' ')
+    .replace(/\s+/g, ' ') // 合并多个空格
+    .trim()
+  
+  console.log(`提取页面 ${props.currentPage} 的内容，长度: ${pageText.length}`)
+  
+  // 存储到 app store
+  appStore.setCurrentPageContent(pageText)
 }
 
 /* ---------------------------------

@@ -213,9 +213,16 @@ const sendMessage = async () => {
       enhancedMessage = `用户正在阅读论文的以下内容：\n\n${appStore.selectedText}\n\n用户的问题：${message}`
       console.log('添加论文上下文（选中文本）:', appStore.selectedText)
     } else {
-      // 如果没有选中文本，提示用户先选中论文内容
-      enhancedMessage = `用户想要了解论文的核心思想，但还没有提供具体的论文内容。请提醒用户先选中论文中的相关段落，然后重新提问。\n\n用户的问题：${message}`
-      console.log('没有选中文本，提示用户先选中内容')
+      // 如果没有选中文本，但当前页面有内容，使用当前页面作为上下文
+      const currentPageContent = appStore.getCurrentPageContent()
+      if (currentPageContent && currentPageContent.trim().length > 0) {
+        enhancedMessage = `用户正在阅读论文的当前页面内容：\n\n${currentPageContent}\n\n用户的问题：${message}`
+        console.log('添加论文上下文（当前页面）:', currentPageContent)
+      } else {
+        // 如果既没有选中文本也没有页面内容，提示用户提供更多上下文
+        enhancedMessage = `用户想要了解论文的相关内容，但还没有提供具体的论文内容。请基于您的知识回答用户的问题，并建议用户提供更多论文上下文以获得更准确的回答。\n\n用户的问题：${message}`
+        console.log('没有选中文本和页面内容，使用通用提示')
+      }
     }
     
     // 调用后端聊天命令

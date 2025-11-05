@@ -41,6 +41,7 @@ export const useAppStore = defineStore('app', () => {
   const currentChatMessage = ref('')
   const isChatting = ref(false)
   const chatStreamingText = ref('')
+  const currentPageContent = ref('') // 当前页面内容
 
   // Getters
   const hasPdf = computed(() => currentPdf.value !== null)
@@ -178,6 +179,16 @@ export const useAppStore = defineStore('app', () => {
     chatMessages.value = []
   }
 
+  // 设置当前页面内容
+  const setCurrentPageContent = (content) => {
+    currentPageContent.value = content
+  }
+
+  // 获取当前页面内容
+  const getCurrentPageContent = () => {
+    return currentPageContent.value
+  }
+
   return {
     // State
     currentPdf,
@@ -236,6 +247,10 @@ export const useAppStore = defineStore('app', () => {
     setChatStreamingText,
     appendChatStreamingText,
     clearChatStreamingText,
-    clearChatMessages
+    clearChatMessages,
+    
+    // 页面内容操作
+    setCurrentPageContent,
+    getCurrentPageContent
   }
 })
