@@ -15,6 +15,25 @@ export const useAppStore = defineStore('app', () => {
   const ollamaStatus = ref('checking') // 'checking', 'running', 'not-found'
   const isStreaming = ref(false)
   const streamingText = ref('')
+  
+  // 大模型配置
+  const modelConfig = ref({
+    selectedModel: 'ollama', // ollama, deepseek, kimi
+    ollama: {
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'qwen3:8b'
+    },
+    deepseek: {
+      apiKey: '',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat'
+    },
+    kimi: {
+      apiKey: '',
+      baseUrl: 'https://api.moonshot.cn',
+      model: 'moonshot-v1-8k'
+    }
+  })
 
   // Getters
   const hasPdf = computed(() => currentPdf.value !== null)
@@ -101,6 +120,19 @@ export const useAppStore = defineStore('app', () => {
     streamingText.value = ''
   }
 
+  // 大模型配置相关操作
+  const setSelectedModel = (model) => {
+    modelConfig.value.selectedModel = model
+  }
+
+  const updateModelConfig = (modelType, config) => {
+    modelConfig.value[modelType] = { ...modelConfig.value[modelType], ...config }
+  }
+
+  const getCurrentModelConfig = () => {
+    return modelConfig.value[modelConfig.value.selectedModel]
+  }
+
   return {
     // State
     currentPdf,
@@ -115,6 +147,7 @@ export const useAppStore = defineStore('app', () => {
     ollamaStatus,
     isStreaming,
     streamingText,
+    modelConfig,
 
     // Getters
     hasPdf,
@@ -138,6 +171,11 @@ export const useAppStore = defineStore('app', () => {
     setStreaming,
     setStreamingText,
     appendStreamingText,
-    clearStreamingText
+    clearStreamingText,
+    
+    // 大模型配置操作
+    setSelectedModel,
+    updateModelConfig,
+    getCurrentModelConfig
   }
 })

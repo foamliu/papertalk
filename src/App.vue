@@ -7,6 +7,7 @@
           <h1 class="app-title">PaperTalk</h1>
           <div class="header-actions">
             <el-button @click="toggleDarkMode" :icon="appStore.isDarkMode ? 'Sunny' : 'Moon'" circle />
+            <el-button @click="showModelConfig" :icon="Setting" circle />
             <el-button @click="openFile" type="primary" :icon="FolderOpened">打开PDF</el-button>
           </div>
         </div>
@@ -113,6 +114,9 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- Model Configuration Dialog -->
+    <ModelConfig v-model="showModelConfigDialog" />
   </div>
 </template>
 
@@ -121,15 +125,17 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { listen } from '@tauri-apps/api/event'
-import { FolderOpened, Sunny, Moon } from '@element-plus/icons-vue'
+import { FolderOpened, Sunny, Moon, Setting } from '@element-plus/icons-vue'
 import { useAppStore } from './stores/app'
 import PdfViewer from './components/PdfViewer.vue'
+import ModelConfig from './components/ModelConfig.vue'
 
 // Store
 const appStore = useAppStore()
 
 // Local state
 const showOllamaDialog = ref(false)
+const showModelConfigDialog = ref(false)
 
 // Methods
 const toggleDarkMode = () => {
@@ -169,9 +175,35 @@ const translateSelectedText = async () => {
   console.log('设置状态后 - translating:', appStore.translating, 'isStreaming:', appStore.isStreaming)
   
   try {
-    console.log('调用后端流式翻译命令...')
-    const result = await invoke('translate_text_stream', { text: appStore.selectedText })
-    console.log('后端流式翻译命令调用完成，结果:', result)
+    console.log('调用后端多模型翻译命令...')
+    
+    // 准备配置数据
+    const config = {
+      selected_model: appStore.modelConfig.selectedModel,
+      ollama: {
+        base_url: appStore.modelConfig.ollama.baseUrl,
+        model: appStore.modelConfig.ollama.model
+      },
+      deepseek: {
+        api_key: appStore.modelConfig.deepseek.apiKey,
+        base_url: appStore.modelConfig.deepseek.baseUrl,
+        model: appStore.modelConfig.deepseek.model
+      },
+      kimi: {
+        api_key: appStore.modelConfig.kimi.apiKey,
+        base_url: appStore.modelConfig.kimi.baseUrl,
+        model: appStore.modelConfig.kimi.model
+      }
+    }
+    
+    console.log('使用模型配置:', config)
+    
+    const result = await invoke('translate_with_config', { 
+      text: appStore.selectedText,
+      config: config
+    })
+    
+    console.log('后端多模型翻译命令调用完成，结果:', result)
     console.log('当前 streamingText:', appStore.streamingText)
     
     // 无论如何都显示翻译结果
@@ -185,7 +217,7 @@ const translateSelectedText = async () => {
     console.log('最终状态 - translating:', appStore.translating, 'isStreaming:', appStore.isStreaming)
   } catch (error) {
     console.error('Streaming translation failed:', error)
-    appStore.setTranslatedText('翻译失败，请检查 Ollama 是否运行')
+    appStore.setTranslatedText(`翻译失败: ${error.message || error}`)
     appStore.setStreaming(false)
     appStore.setTranslating(false)
   }
@@ -224,7 +256,6 @@ const setupEventListeners = async () => {
   }
 }
 
-
 const openOllamaWebsite = async () => {
   try {
     await invoke('open_ollama_website')
@@ -243,6 +274,10 @@ const retryOllamaCheck = async () => {
   } catch (error) {
     console.error('Ollama check failed:', error)
   }
+}
+
+const showModelConfig = () => {
+  showModelConfigDialog.value = true
 }
 
 // Lifecycle
