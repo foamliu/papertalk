@@ -16,6 +16,10 @@
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "element-plus": "^2.3.0",
+    "katex": "^0.16.25",
+    "markdown-it": "^14.1.0",
+    "markdown-it-katex": "^2.0.3",
+    "marked": "^16.4.1",
     "pdfjs-dist": "5.4.296",
     "pinia": "^2.1.0",
     "vue": "^3.3.0"

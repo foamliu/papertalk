@@ -106,9 +106,19 @@ import { useAppStore } from '../stores/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { User, ChatDotRound, Delete } from '@element-plus/icons-vue'
+import MarkdownIt from 'markdown-it'
+import mk from 'markdown-it-katex'
+import 'katex/dist/katex.min.css'
 
 const appStore = useAppStore()
 const messagesContainer = ref(null)
+
+// 配置 Markdown 渲染器，支持 LaTeX 数学公式
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true
+}).use(mk)
 
 // 计算属性
 const canSendMessage = computed(() => {
@@ -117,8 +127,21 @@ const canSendMessage = computed(() => {
 
 // 方法
 const formatMessage = (text) => {
-  // 简单的格式化，将换行转换为 <br>
-  return text.replace(/\n/g, '<br>')
+  // 预处理文本，修复常见的 Markdown 格式问题
+  let formattedText = text
+  
+  // 1. 修复没有空格的标题格式（如 "####4." -> "#### 4."）
+  formattedText = formattedText.replace(/(#{1,6})(\d+\.)/g, '$1 $2')
+  
+  // 2. 确保段落之间有适当的换行
+  // 将连续的两个或多个换行符转换为段落分隔
+  formattedText = formattedText.replace(/\n\n+/g, '\n\n')
+  
+  // 3. 确保单行换行符也被保留（转换为空格）
+  formattedText = formattedText.replace(/([^\n])\n([^\n])/g, '$1 $2')
+  
+  // 使用 markdown-it 渲染 Markdown，支持 LaTeX 数学公式
+  return md.render(formattedText)
 }
 
 const formatTime = (timestamp) => {
@@ -540,5 +563,171 @@ onUnmounted(() => {
 
 .dark-mode .messages-container::-webkit-scrollbar-thumb:hover {
   background: #808080;
+}
+
+/* Markdown 渲染样式 */
+.message-text :deep(h1),
+.message-text :deep(h2),
+.message-text :deep(h3),
+.message-text :deep(h4),
+.message-text :deep(h5),
+.message-text :deep(h6) {
+  margin: 8px 0;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.message-text :deep(h1) {
+  font-size: 1.5em;
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.3em;
+}
+
+.message-text :deep(h2) {
+  font-size: 1.25em;
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.3em;
+}
+
+.message-text :deep(h3) {
+  font-size: 1.1em;
+}
+
+.message-text :deep(p) {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 8px 0;
+  padding-left: 2em;
+}
+
+.message-text :deep(li) {
+  margin: 4px 0;
+}
+
+.message-text :deep(blockquote) {
+  margin: 16px 0;
+  padding: 0 1em;
+  color: #6a737d;
+  border-left: 0.25em solid #dfe2e5;
+  background-color: #f6f8fa;
+}
+
+.message-text :deep(code) {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 0.85em;
+  background-color: rgba(175, 184, 193, 0.2);
+  border-radius: 6px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.message-text :deep(pre) {
+  margin: 16px 0;
+  padding: 16px;
+  overflow: auto;
+  font-size: 0.85em;
+  line-height: 1.45;
+  background-color: #f6f8fa;
+  border-radius: 6px;
+  border: 1px solid #e1e4e8;
+}
+
+.message-text :deep(pre code) {
+  padding: 0;
+  margin: 0;
+  font-size: 100%;
+  word-break: normal;
+  white-space: pre;
+  background: transparent;
+  border: 0;
+}
+
+.message-text :deep(table) {
+  border-collapse: collapse;
+  margin: 16px 0;
+  width: 100%;
+}
+
+.message-text :deep(th),
+.message-text :deep(td) {
+  padding: 6px 13px;
+  border: 1px solid #dfe2e5;
+}
+
+.message-text :deep(th) {
+  background-color: #f6f8fa;
+  font-weight: 600;
+}
+
+.message-text :deep(tr:nth-child(2n)) {
+  background-color: #f6f8fa;
+}
+
+.message-text :deep(a) {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.message-text :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.message-text :deep(strong) {
+  font-weight: 600;
+}
+
+.message-text :deep(em) {
+  font-style: italic;
+}
+
+/* 数学公式样式 */
+.message-text :deep(.katex) {
+  font-size: 1.1em;
+}
+
+.message-text :deep(.katex-display) {
+  margin: 16px 0;
+  text-align: center;
+}
+
+.message-text :deep(.katex-display > .katex) {
+  text-align: center;
+}
+
+/* 暗色模式下的 Markdown 样式 */
+.dark-mode .message-text :deep(blockquote) {
+  color: #8b949e;
+  border-left-color: #3b434b;
+  background-color: #161b22;
+}
+
+.dark-mode .message-text :deep(code) {
+  background-color: rgba(110, 118, 129, 0.4);
+}
+
+.dark-mode .message-text :deep(pre) {
+  background-color: #161b22;
+  border-color: #30363d;
+}
+
+.dark-mode .message-text :deep(th) {
+  background-color: #161b22;
+}
+
+.dark-mode .message-text :deep(tr:nth-child(2n)) {
+  background-color: #161b22;
+}
+
+.dark-mode .message-text :deep(a) {
+  color: #58a6ff;
+}
+
+.dark-mode .message-text :deep(h1),
+.dark-mode .message-text :deep(h2) {
+  border-bottom-color: #30363d;
 }
 </style>

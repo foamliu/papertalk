@@ -29,6 +29,7 @@ struct OllamaRequest {
     prompt: String,
     stream: bool,
     think: bool,
+    num_predict: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -108,7 +109,8 @@ async fn translate_text(text: String) -> Result<String, String> {
             text
         ),
         stream: false,
-        think: false
+        think: false,
+        num_predict: Some(1000), // 限制响应长度
     };
 
     let url = "http://127.0.0.1:11434/api/generate"; // 去掉尾部空格
@@ -153,6 +155,7 @@ async fn translate_text_stream(text: String, app_handle: tauri::AppHandle) -> Re
         ),
         stream: true,
         think: false,
+        num_predict: Some(1000), // 限制响应长度
     };
 
     let url = "http://127.0.0.1:11434/api/generate";
@@ -300,7 +303,7 @@ async fn chat_with_config(message: String, config: ModelConfig, app_handle: taur
     // 获取当前打开的PDF文件路径（如果有的话）
     let current_pdf = std::env::current_dir()
         .ok()
-        .and_then(|dir| {
+        .and_then(|_dir| {
             // 这里可以添加逻辑来获取当前打开的PDF文件
             // 目前先返回一个占位符
             Some("当前打开的论文内容".to_string())
@@ -348,6 +351,7 @@ async fn translate_with_ollama(text: String, config: OllamaConfig, app_handle: t
         ),
         stream: true,
         think: false,
+        num_predict: Some(1000), // 限制响应长度
     };
 
     let url = format!("{}/api/generate", config.base_url);
@@ -607,6 +611,7 @@ async fn chat_with_ollama(message: String, config: OllamaConfig, app_handle: tau
         ),
         stream: true,
         think: false,
+        num_predict: Some(1000), // 限制响应长度
     };
 
     let url = format!("{}/api/generate", config.base_url);
