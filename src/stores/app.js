@@ -35,6 +35,13 @@ export const useAppStore = defineStore('app', () => {
     }
   })
 
+  // Chat 相关状态
+  const activePanel = ref('translation') // translation, chat
+  const chatMessages = ref([])
+  const currentChatMessage = ref('')
+  const isChatting = ref(false)
+  const chatStreamingText = ref('')
+
   // Getters
   const hasPdf = computed(() => currentPdf.value !== null)
   const canGoPrev = computed(() => currentPage.value > 1)
@@ -133,6 +140,44 @@ export const useAppStore = defineStore('app', () => {
     return modelConfig.value[modelConfig.value.selectedModel]
   }
 
+  // Chat 相关操作
+  const setActivePanel = (panel) => {
+    activePanel.value = panel
+  }
+
+  const addChatMessage = (message) => {
+    chatMessages.value.push({
+      id: Date.now(),
+      role: message.role,
+      content: message.content,
+      timestamp: new Date().toISOString()
+    })
+  }
+
+  const setCurrentChatMessage = (message) => {
+    currentChatMessage.value = message
+  }
+
+  const setIsChatting = (status) => {
+    isChatting.value = status
+  }
+
+  const setChatStreamingText = (text) => {
+    chatStreamingText.value = text
+  }
+
+  const appendChatStreamingText = (chunk) => {
+    chatStreamingText.value += chunk
+  }
+
+  const clearChatStreamingText = () => {
+    chatStreamingText.value = ''
+  }
+
+  const clearChatMessages = () => {
+    chatMessages.value = []
+  }
+
   return {
     // State
     currentPdf,
@@ -148,6 +193,11 @@ export const useAppStore = defineStore('app', () => {
     isStreaming,
     streamingText,
     modelConfig,
+    activePanel,
+    chatMessages,
+    currentChatMessage,
+    isChatting,
+    chatStreamingText,
 
     // Getters
     hasPdf,
@@ -176,6 +226,16 @@ export const useAppStore = defineStore('app', () => {
     // 大模型配置操作
     setSelectedModel,
     updateModelConfig,
-    getCurrentModelConfig
+    getCurrentModelConfig,
+
+    // Chat 操作
+    setActivePanel,
+    addChatMessage,
+    setCurrentChatMessage,
+    setIsChatting,
+    setChatStreamingText,
+    appendChatStreamingText,
+    clearChatStreamingText,
+    clearChatMessages
   }
 })

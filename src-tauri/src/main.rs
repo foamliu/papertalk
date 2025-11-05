@@ -293,6 +293,50 @@ async fn translate_with_config(text: String, config: ModelConfig, app_handle: ta
     }
 }
 
+#[tauri::command]
+async fn chat_with_config(message: String, config: ModelConfig, app_handle: tauri::AppHandle) -> Result<String, String> {
+    println!("💬 收到聊天请求，消息：{}，模型：{}", message, config.selected_model);
+    
+    // 获取当前打开的PDF文件路径（如果有的话）
+    let current_pdf = std::env::current_dir()
+        .ok()
+        .and_then(|dir| {
+            // 这里可以添加逻辑来获取当前打开的PDF文件
+            // 目前先返回一个占位符
+            Some("当前打开的论文内容".to_string())
+        })
+        .unwrap_or_default();
+    
+    // 构建包含论文上下文的提示词
+    let enhanced_message = if !current_pdf.is_empty() {
+        format!(
+            "用户正在阅读一篇论文，以下是论文的相关信息：{}\n\n用户的问题：{}",
+            current_pdf, message
+        )
+    } else {
+        message
+    };
+    
+    match config.selected_model.as_str() {
+        "ollama" => {
+            println!("使用 Ollama 模型进行聊天");
+            chat_with_ollama(enhanced_message, config.ollama, app_handle).await
+        }
+        "deepseek" => {
+            println!("使用 DeepSeek 模型进行聊天");
+            chat_with_deepseek(enhanced_message, config.deepseek, app_handle).await
+        }
+        "kimi" => {
+            println!("使用 Kimi 模型进行聊天");
+            chat_with_kimi(enhanced_message, config.kimi, app_handle).await
+        }
+        _ => {
+            println!("❌ 未知模型类型：{}", config.selected_model);
+            Err("Unknown model type".to_string())
+        }
+    }
+}
+
 async fn translate_with_ollama(text: String, config: OllamaConfig, app_handle: tauri::AppHandle) -> Result<String, String> {
     let client = reqwest::Client::new();
     let request = OllamaRequest {
@@ -551,6 +595,266 @@ async fn translate_with_kimi(text: String, config: KimiConfig, app_handle: tauri
     }
 }
 
+// 聊天功能实现
+async fn chat_with_ollama(message: String, config: OllamaConfig, app_handle: tauri::AppHandle) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let request = OllamaRequest {
+        model: config.model,
+        prompt: format!(
+            "你是一个专业的学术助手，请帮助用户解答关于论文的问题。\
+             用户的问题：{}",
+            message
+        ),
+        stream: true,
+        think: false,
+    };
+
+    let url = format!("{}/api/generate", config.base_url);
+    println!("[chat_with_ollama] 请求 URL: {}", url);
+
+    match client.post(&url).json(&request).send().await {
+        Ok(mut resp) if resp.status().is_success() => {
+            let mut full_response = String::new();
+            
+            while let Some(chunk) = resp.chunk().await.map_err(|e| format!("Failed to read chunk: {}", e))? {
+                let chunk_str = String::from_utf8_lossy(&chunk);
+                
+                for line in chunk_str.lines() {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+                    
+                    match serde_json::from_str::<OllamaStreamResponse>(line) {
+                        Ok(stream_resp) => {
+                            let re = Regex::new(r"(?s)<think>\s*.*?\s*</think>|\s*/no_think\s*/think\s*$|\s*/think\s*$").unwrap();
+                            let cleaned = re.replace_all(&stream_resp.response, "").trim().to_string();
+                            
+                            if !cleaned.is_empty() {
+                                full_response.push_str(&cleaned);
+                                
+                                // 发送聊天流式更新
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    let _ = window.emit("chat_chunk", &cleaned);
+                                } else if let Some(window) = app_handle.webview_windows().values().next() {
+                                    let _ = window.emit("chat_chunk", &cleaned);
+                                }
+                            }
+                            
+                            if stream_resp.done {
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    let _ = window.emit("chat_complete", &full_response);
+                                } else if let Some(window) = app_handle.webview_windows().values().next() {
+                                    let _ = window.emit("chat_complete", &full_response);
+                                }
+                                return Ok(full_response);
+                            }
+                        }
+                        Err(e) => {
+                            println!("[chat_with_ollama] JSON 解析错误: {}, 行: {}", e, line);
+                        }
+                    }
+                }
+            }
+            
+            Ok(full_response)
+        }
+        Ok(resp) => {
+            println!("[chat_with_ollama] ❌ 非 2xx 状态：{}", resp.status());
+            Err("Ollama chat failed".to_string())
+        }
+        Err(e) => {
+            println!("[chat_with_ollama] ❌ 网络错误: {}", e);
+            Err(format!("Network error: {}", e))
+        }
+    }
+}
+
+async fn chat_with_deepseek(message: String, config: DeepSeekConfig, app_handle: tauri::AppHandle) -> Result<String, String> {
+    if config.api_key.is_empty() {
+        return Err("DeepSeek API key is required".to_string());
+    }
+
+    let client = reqwest::Client::new();
+    let request = DeepSeekRequest {
+        model: config.model,
+        messages: vec![
+            DeepSeekMessage {
+                role: "system".to_string(),
+                content: "你是一个专业的学术助手，请帮助用户解答关于论文的问题。".to_string(),
+            },
+            DeepSeekMessage {
+                role: "user".to_string(),
+                content: message,
+            },
+        ],
+        stream: true,
+    };
+
+    let url = format!("{}/chat/completions", config.base_url);
+    println!("[chat_with_deepseek] 请求 URL: {}", url);
+
+    match client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", config.api_key))
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+    {
+        Ok(mut resp) if resp.status().is_success() => {
+            let mut full_response = String::new();
+            
+            while let Some(chunk) = resp.chunk().await.map_err(|e| format!("Failed to read chunk: {}", e))? {
+                let chunk_str = String::from_utf8_lossy(&chunk);
+                
+                for line in chunk_str.lines() {
+                    if line.trim().is_empty() || !line.starts_with("data: ") {
+                        continue;
+                    }
+                    
+                    let data_line = &line[6..]; // Remove "data: " prefix
+                    if data_line.trim() == "[DONE]" {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.emit("chat_complete", &full_response);
+                        } else if let Some(window) = app_handle.webview_windows().values().next() {
+                            let _ = window.emit("chat_complete", &full_response);
+                        }
+                        return Ok(full_response);
+                    }
+                    
+                    match serde_json::from_str::<serde_json::Value>(data_line) {
+                        Ok(json) => {
+                            if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
+                                if let Some(choice) = choices.first() {
+                                    if let Some(delta) = choice.get("delta") {
+                                        if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
+                                            if !content.is_empty() {
+                                                full_response.push_str(content);
+                                                
+                                                if let Some(window) = app_handle.get_webview_window("main") {
+                                                    let _ = window.emit("chat_chunk", content);
+                                                } else if let Some(window) = app_handle.webview_windows().values().next() {
+                                                    let _ = window.emit("chat_chunk", content);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("[chat_with_deepseek] JSON 解析错误: {}, 行: {}", e, data_line);
+                        }
+                    }
+                }
+            }
+            
+            Ok(full_response)
+        }
+        Ok(resp) => {
+            println!("[chat_with_deepseek] ❌ 非 2xx 状态：{}", resp.status());
+            Err("DeepSeek chat failed".to_string())
+        }
+        Err(e) => {
+            println!("[chat_with_deepseek] ❌ 网络错误: {}", e);
+            Err(format!("Network error: {}", e))
+        }
+    }
+}
+
+async fn chat_with_kimi(message: String, config: KimiConfig, app_handle: tauri::AppHandle) -> Result<String, String> {
+    if config.api_key.is_empty() {
+        return Err("Kimi API key is required".to_string());
+    }
+
+    let client = reqwest::Client::new();
+    let request = KimiRequest {
+        model: config.model,
+        messages: vec![
+            KimiMessage {
+                role: "system".to_string(),
+                content: "你是一个专业的学术助手，请帮助用户解答关于论文的问题。".to_string(),
+            },
+            KimiMessage {
+                role: "user".to_string(),
+                content: message,
+            },
+        ],
+        stream: true,
+    };
+
+    let url = format!("{}/v1/chat/completions", config.base_url);
+    println!("[chat_with_kimi] 请求 URL: {}", url);
+
+    match client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", config.api_key))
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+    {
+        Ok(mut resp) if resp.status().is_success() => {
+            let mut full_response = String::new();
+            
+            while let Some(chunk) = resp.chunk().await.map_err(|e| format!("Failed to read chunk: {}", e))? {
+                let chunk_str = String::from_utf8_lossy(&chunk);
+                
+                for line in chunk_str.lines() {
+                    if line.trim().is_empty() || !line.starts_with("data: ") {
+                        continue;
+                    }
+                    
+                    let data_line = &line[6..]; // Remove "data: " prefix
+                    if data_line.trim() == "[DONE]" {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.emit("chat_complete", &full_response);
+                        } else if let Some(window) = app_handle.webview_windows().values().next() {
+                            let _ = window.emit("chat_complete", &full_response);
+                        }
+                        return Ok(full_response);
+                    }
+                    
+                    match serde_json::from_str::<serde_json::Value>(data_line) {
+                        Ok(json) => {
+                            if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
+                                if let Some(choice) = choices.first() {
+                                    if let Some(delta) = choice.get("delta") {
+                                        if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
+                                            if !content.is_empty() {
+                                                full_response.push_str(content);
+                                                
+                                                if let Some(window) = app_handle.get_webview_window("main") {
+                                                    let _ = window.emit("chat_chunk", content);
+                                                } else if let Some(window) = app_handle.webview_windows().values().next() {
+                                                    let _ = window.emit("chat_chunk", content);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("[chat_with_kimi] JSON 解析错误: {}, 行: {}", e, data_line);
+                        }
+                    }
+                }
+            }
+            
+            Ok(full_response)
+        }
+        Ok(resp) => {
+            println!("[chat_with_kimi] ❌ 非 2xx 状态：{}", resp.status());
+            Err("Kimi chat failed".to_string())
+        }
+        Err(e) => {
+            println!("[chat_with_kimi] ❌ 网络错误: {}", e);
+            Err(format!("Network error: {}", e))
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -560,7 +864,8 @@ fn main() {
             translate_text_stream,
             open_ollama_website,
             get_pdf_data,
-            translate_with_config
+            translate_with_config,
+            chat_with_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

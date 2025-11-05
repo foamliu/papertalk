@@ -35,59 +35,69 @@
           </div>
         </el-main>
 
-        <!-- Translation Panel -->
-        <el-aside class="translation-panel" width="350px">
+        <!-- Side Panel -->
+        <el-aside class="side-panel" width="350px">
           <div class="panel-header">
-            <h3>翻译</h3>
-          </div>
-          
-          <div class="translation-section">
-            <h4>原文</h4>
-            <el-input
-              v-model="appStore.selectedText"
-              type="textarea"
-              :rows="8"
-              placeholder="选择文本后点击翻译按钮"
-              readonly
-              class="original-textarea"
-            />
-            
-            <el-button 
-              type="primary" 
-              @click="translateSelectedText" 
-              :loading="appStore.translating"
-              :disabled="!appStore.hasSelectedText"
-              style="margin-top: 10px;"
+            <el-tabs 
+              v-model="appStore.activePanel" 
+              class="panel-tabs"
+              @tab-click="handleTabChange"
             >
-              {{ appStore.translating ? '翻译中...' : '翻译' }}
-            </el-button>
-          </div>
+              <el-tab-pane label="翻译" name="translation">
+                <div class="translation-section">
+                  <h4>原文</h4>
+                  <el-input
+                    v-model="appStore.selectedText"
+                    type="textarea"
+                    :rows="8"
+                    placeholder="选择文本后点击翻译按钮"
+                    readonly
+                    class="original-textarea"
+                  />
+                  
+                  <el-button 
+                    type="primary" 
+                    @click="translateSelectedText" 
+                    :loading="appStore.translating"
+                    :disabled="!appStore.hasSelectedText"
+                    style="margin-top: 10px;"
+                  >
+                    {{ appStore.translating ? '翻译中...' : '翻译' }}
+                  </el-button>
+                </div>
 
-          <div class="translation-result">
-            <h4>译文</h4>
-            <div v-if="appStore.isStreaming" class="streaming-translation">
-              <el-input
-                v-model="appStore.streamingText"
-                type="textarea"
-                :rows="15"
-                placeholder="翻译结果将实时显示在这里..."
-                readonly
-                class="translation-textarea streaming-textarea"
-              />
-              <div class="streaming-indicator">
-                <span class="streaming-dot"></span>
-                <span>实时翻译中...</span>
-              </div>
-            </div>
-            <el-input
-              v-else
-              v-model="appStore.translatedText"
-              type="textarea"
-              :rows="15"
-              placeholder="翻译结果将显示在这里"
-              readonly
-              class="translation-textarea"
-            />
+                <div class="translation-result">
+                  <h4>译文</h4>
+                  <div v-if="appStore.isStreaming" class="streaming-translation">
+                    <el-input
+                      v-model="appStore.streamingText"
+                      type="textarea"
+                      :rows="15"
+                      placeholder="翻译结果将实时显示在这里..."
+                      readonly
+                      class="translation-textarea streaming-textarea"
+                    />
+                    <div class="streaming-indicator">
+                      <span class="streaming-dot"></span>
+                      <span>实时翻译中...</span>
+                    </div>
+                  </div>
+                  <el-input
+                    v-else
+                    v-model="appStore.translatedText"
+                    type="textarea"
+                    :rows="15"
+                    placeholder="翻译结果将显示在这里"
+                    readonly
+                    class="translation-textarea"
+                  />
+                </div>
+              </el-tab-pane>
+              
+              <el-tab-pane label="Chat" name="chat">
+                <ChatPanel />
+              </el-tab-pane>
+            </el-tabs>
           </div>
         </el-aside>
       </el-container>
@@ -129,6 +139,7 @@ import { FolderOpened, Sunny, Moon, Setting } from '@element-plus/icons-vue'
 import { useAppStore } from './stores/app'
 import PdfViewer from './components/PdfViewer.vue'
 import ModelConfig from './components/ModelConfig.vue'
+import ChatPanel from './components/ChatPanel.vue'
 
 // Store
 const appStore = useAppStore()
@@ -278,6 +289,11 @@ const retryOllamaCheck = async () => {
 
 const showModelConfig = () => {
   showModelConfigDialog.value = true
+}
+
+const handleTabChange = (tab) => {
+  console.log('切换到Tab:', tab.props.name)
+  // 可以在这里添加Tab切换时的额外逻辑
 }
 
 // Lifecycle
@@ -437,7 +453,7 @@ onUnmounted(() => {
   overflow: visible;
 }
 
-.translation-panel {
+.side-panel {
   background-color: #f8f9fa;
   border-left: 1px solid #e4e7ed;
   display: flex;
@@ -446,13 +462,13 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.dark-mode .translation-panel {
+.dark-mode .side-panel {
   background-color: #2d2d2d;
   border-left-color: #434343;
 }
 
 .panel-header {
-  padding: 15px 20px;
+  padding: 0;
   border-bottom: 1px solid #e4e7ed;
   background-color: #ffffff;
   flex-shrink: 0;
@@ -463,32 +479,56 @@ onUnmounted(() => {
   border-bottom-color: #434343;
 }
 
-.panel-header h3 {
-  margin: 0;
-  color: #303133;
+.panel-tabs {
+  width: 100%;
 }
 
-.dark-mode .panel-header h3 {
-  color: #ffffff;
+.panel-tabs :deep(.el-tabs__header) {
+  margin: 0;
+}
+
+.panel-tabs :deep(.el-tabs__nav-wrap) {
+  padding: 0 20px;
+}
+
+.panel-tabs :deep(.el-tabs__nav-scroll) {
+  padding: 0;
+}
+
+.panel-tabs :deep(.el-tabs__item) {
+  padding: 0 16px;
+  height: 48px;
+  line-height: 48px;
+}
+
+.panel-tabs :deep(.el-tabs__content) {
+  padding: 0;
+  height: calc(100vh - 60px - 48px);
+  overflow: hidden;
+}
+
+.panel-tabs :deep(.el-tab-pane) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .translation-section,
 .translation-result {
   padding: 20px;
   border-bottom: 1px solid #e4e7ed;
-  flex-shrink: 0;
 }
 
 .translation-section {
-  flex: 0 0 35%;
   display: flex;
   flex-direction: column;
+  min-height: 200px;
 }
 
 .translation-result {
-  flex: 0 0 65%;
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .translation-section h4,
