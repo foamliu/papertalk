@@ -185,18 +185,13 @@ async function renderPage(pageNum) {
   canvas.style.height = viewport.height + 'px'
   await page.render({ canvasContext: ctx, viewport }).promise
 
-  // 渲染文本层
+  // 渲染文本层 - 使用更精确的文本选择方法
   const textContent = await page.getTextContent()
   // 清空旧内容
   textDiv.innerHTML = ''
-  // 使用官方 TextLayer
-  const textLayer = new pdfjsLib.TextLayer({
-    textContentSource: textContent,
-    container: textDiv,
-    viewport,
-    enhancedTextSelection: false
-  })
-  await textLayer.render()
+  
+  // 创建自定义文本层，确保精确对齐
+  await renderCustomTextLayer(textDiv, textContent, viewport)
 }
 
 function retryLoad() {
@@ -208,12 +203,235 @@ function prevPage() {
 function nextPage() {
   if (canGoNext.value) emit('update:currentPage', props.currentPage + 1)
 }
-function handleTextSelection() {
-  const text = window.getSelection().toString().trim()
-  if (text) emit('textSelected', text)
-}
 function handleCanvasClick() {
   window.getSelection().removeAllRanges()
+}
+
+// 修复文本层对齐问题
+function fixTextLayerAlignment(textDiv, viewport) {
+  if (!textDiv) return
+  
+  // 确保文本层与canvas精确对齐
+  textDiv.style.width = viewport.width + 'px'
+  textDiv.style.height = viewport.height + 'px'
+  textDiv.style.left = '0px'
+  textDiv.style.top = '0px'
+  
+  // 优化文本选择：修复跨列选择问题
+  const textSpans = textDiv.querySelectorAll('span')
+  textSpans.forEach(span => {
+    // 移除可能影响选择精度的样式
+    span.style.lineHeight = '1'
+    span.style.letterSpacing = '0px'
+    
+    // 确保文本span有正确的定位
+    if (!span.style.left || !span.style.top) {
+      const rect = span.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        span.style.position = 'absolute'
+      }
+    }
+  })
+}
+
+
+// 自定义文本层渲染 - 解决文本选择错位问题
+async function renderCustomTextLayer(container, textContent, viewport) {
+  // 确保容器样式正确
+  container.style.width = viewport.width + 'px'
+  container.style.height = viewport.height + 'px'
+  container.style.position = 'absolute'
+  container.style.left = '0px'
+  container.style.top = '0px'
+  container.style.overflow = 'hidden'
+  container.style.lineHeight = '1'
+  container.style.fontSize = '1px' // 最小化字体影响
+  container.style.color = 'transparent'
+  container.style.userSelect = 'text'
+  container.style.webkitUserSelect = 'text'
+  container.style.mozUserSelect = 'text'
+  container.style.msUserSelect = 'text'
+
+  // 渲染文本项
+  for (const item of textContent.items) {
+    const textSpan = document.createElement('span')
+    
+    // 设置文本内容
+    textSpan.textContent = item.str
+    
+    // 精确计算位置和尺寸
+    const transform = viewport.transform
+    const scale = viewport.scale
+    
+    // 计算精确位置（考虑PDF坐标系统）
+    const left = (item.transform[4] * scale) + 'px'
+    const top = (viewport.height - (item.transform[5] * scale) - (item.height * scale)) + 'px'
+    const width = (item.width * scale) + 'px'
+    const height = (item.height * scale) + 'px'
+    
+    // 设置样式
+    textSpan.style.position = 'absolute'
+    textSpan.style.left = left
+    textSpan.style.top = top
+    textSpan.style.width = width
+    textSpan.style.height = height
+    textSpan.style.whiteSpace = 'pre'
+    textSpan.style.fontSize = (item.height * scale) + 'px'
+    textSpan.style.lineHeight = '1'
+    textSpan.style.letterSpacing = '0px'
+    textSpan.style.fontFamily = item.fontName || 'sans-serif'
+    textSpan.style.color = 'transparent'
+    textSpan.style.cursor = 'text'
+    
+    // 添加数据属性用于调试
+    textSpan.dataset.text = item.str
+    textSpan.dataset.originalLeft = item.transform[4]
+    textSpan.dataset.originalTop = item.transform[5]
+    
+    container.appendChild(textSpan)
+  }
+  
+  await nextTick()
+  
+  // 验证文本层对齐
+  verifyTextLayerAlignment(container, viewport)
+}
+
+// 验证文本层对齐
+function verifyTextLayerAlignment(container, viewport) {
+  const textSpans = container.querySelectorAll('span')
+  let misalignedCount = 0
+  
+  textSpans.forEach(span => {
+    const rect = span.getBoundingClientRect()
+    const expectedLeft = parseFloat(span.style.left)
+    const expectedTop = parseFloat(span.style.top)
+    
+    // 检查位置偏差
+    const leftDiff = Math.abs(rect.left - expectedLeft)
+    const topDiff = Math.abs(rect.top - expectedTop)
+    
+    if (leftDiff > 2 || topDiff > 2) {
+      misalignedCount++
+      console.warn('文本span位置偏差:', {
+        expected: { left: expectedLeft, top: expectedTop },
+        actual: { left: rect.left, top: rect.top },
+        diff: { left: leftDiff, top: topDiff }
+      })
+    }
+  })
+  
+  if (misalignedCount > 0) {
+    console.warn(`发现 ${misalignedCount} 个文本span位置偏差`)
+  }
+}
+
+// 完全重写的文本选择处理 - 解决错位问题
+function handleTextSelection() {
+  const selection = window.getSelection()
+  if (!selection.rangeCount) return
+  
+  const range = selection.getRangeAt(0)
+  let selectedText = range.toString().trim()
+  
+  if (!selectedText) return
+  
+  // 获取文本层
+  const textLayer = textLayerRef.value
+  if (!textLayer) {
+    emit('textSelected', selectedText)
+    return
+  }
+  
+  // 检查选择是否错位
+  const rangeRect = range.getBoundingClientRect()
+  const textSpans = textLayer.querySelectorAll('span')
+  
+  // 如果选择范围明显错位，使用精确选择
+  if (isSelectionMisaligned(rangeRect, textSpans)) {
+    const preciseText = getPreciseTextFromSelection(rangeRect, textSpans)
+    if (preciseText && preciseText !== selectedText) {
+      selectedText = preciseText
+    }
+  }
+  
+  // 清理文本（移除多余空格和换行）
+  selectedText = cleanSelectedText(selectedText)
+  
+  emit('textSelected', selectedText)
+}
+
+// 检查选择是否错位
+function isSelectionMisaligned(rangeRect, textSpans) {
+  if (!textSpans.length) return false
+  
+  // 计算选择范围内的文本span数量
+  let spansInRange = 0
+  for (const span of textSpans) {
+    const spanRect = span.getBoundingClientRect()
+    if (isRectOverlap(spanRect, rangeRect)) {
+      spansInRange++
+    }
+  }
+  
+  // 如果选择范围内没有文本span，说明选择错位
+  return spansInRange === 0
+}
+
+// 检查矩形是否重叠
+function isRectOverlap(rect1, rect2) {
+  return !(
+    rect1.right < rect2.left ||
+    rect1.left > rect2.right ||
+    rect1.bottom < rect2.top ||
+    rect1.top > rect2.bottom
+  )
+}
+
+// 从选择范围获取精确文本
+function getPreciseTextFromSelection(rangeRect, textSpans) {
+  const selectedSpans = []
+  
+  for (const span of textSpans) {
+    const spanRect = span.getBoundingClientRect()
+    
+    // 检查span是否在选择范围内
+    if (isRectOverlap(spanRect, rangeRect)) {
+      // 计算重叠面积
+      const overlapArea = calculateOverlapArea(spanRect, rangeRect)
+      const spanArea = spanRect.width * spanRect.height
+      
+      // 如果重叠面积超过span面积的50%，认为被选中
+      if (overlapArea > spanArea * 0.5) {
+        selectedSpans.push({
+          span,
+          text: span.textContent || span.innerText,
+          left: spanRect.left
+        })
+      }
+    }
+  }
+  
+  // 按从左到右排序
+  selectedSpans.sort((a, b) => a.left - b.left)
+  
+  // 组合文本
+  return selectedSpans.map(item => item.text).join(' ').trim()
+}
+
+// 计算矩形重叠面积
+function calculateOverlapArea(rect1, rect2) {
+  const xOverlap = Math.max(0, Math.min(rect1.right, rect2.right) - Math.max(rect1.left, rect2.left))
+  const yOverlap = Math.max(0, Math.min(rect1.bottom, rect2.bottom) - Math.max(rect1.top, rect2.top))
+  return xOverlap * yOverlap
+}
+
+// 清理选中文本
+function cleanSelectedText(text) {
+  return text
+    .replace(/\s+/g, ' ') // 合并多个空格
+    .replace(/\n/g, ' ')  // 替换换行符为空格
+    .trim()
 }
 
 /* ---------------------------------
