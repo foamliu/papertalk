@@ -279,6 +279,23 @@ const setupEventListeners = async () => {
         content: fullText
       })
       
+      // 确保状态正确重置
+      appStore.setIsChatting(false)
+      appStore.clearChatStreamingText()
+    })
+    
+    // 监听聊天错误
+    const unlistenError = await listen('chat_error', (event) => {
+      const error = event.payload
+      console.error('聊天过程中出现错误:', error)
+      
+      // 添加错误消息
+      appStore.addChatMessage({
+        role: 'assistant',
+        content: `抱歉，聊天过程中出现了错误：${error.message || error}`
+      })
+      
+      // 确保状态正确重置
       appStore.setIsChatting(false)
       appStore.clearChatStreamingText()
     })
@@ -288,6 +305,7 @@ const setupEventListeners = async () => {
     return () => {
       unlistenChunk()
       unlistenComplete()
+      unlistenError()
     }
   } catch (error) {
     console.error('设置聊天事件监听器失败:', error)

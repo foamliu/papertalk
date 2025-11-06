@@ -31,7 +31,7 @@ export const useAppStore = defineStore('app', () => {
     kimi: {
       apiKey: '',
       baseUrl: 'https://api.moonshot.cn',
-      model: 'moonshot-v1-8k'
+      model: 'kimi-k2-0905-preview'
     }
   })
 

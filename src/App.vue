@@ -36,7 +36,7 @@
         </el-main>
 
         <!-- Side Panel -->
-        <el-aside class="side-panel" width="350px">
+        <el-aside class="side-panel" width="525px">
           <div class="panel-header">
             <el-tabs 
               v-model="appStore.activePanel" 
